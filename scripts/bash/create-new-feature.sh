@@ -5,6 +5,7 @@ set -e
 JSON_MODE=false
 SHORT_NAME=""
 BRANCH_NUMBER=""
+UPDATE_CURRENT=false
 ARGS=()
 i=1
 while [ $i -le $# ]; do
@@ -40,13 +41,17 @@ while [ $i -le $# ]; do
             fi
             BRANCH_NUMBER="$next_arg"
             ;;
-        --help|-h) 
+        --update-current)
+            UPDATE_CURRENT=true
+            ;;
+        --help|-h)
             echo "Usage: $0 [--json] [--short-name <name>] [--number N] <feature_description>"
             echo ""
             echo "Options:"
             echo "  --json              Output in JSON format"
             echo "  --short-name <name> Provide a custom short name (2-4 words) for the branch"
             echo "  --number N          Specify branch number manually (overrides auto-detection)"
+            echo "  --update-current    Reuse the currently checked-out feature branch instead of creating a new one"
             echo "  --help, -h          Show this help message"
             echo ""
             echo "Examples:"
@@ -66,6 +71,8 @@ if [ -z "$FEATURE_DESCRIPTION" ]; then
     echo "Usage: $0 [--json] [--short-name <name>] [--number N] <feature_description>" >&2
     exit 1
 fi
+
+MODE="create"
 
 # Function to find the repository root by searching for existing project markers
 find_repo_root() {
@@ -168,6 +175,7 @@ clean_branch_name() {
 # to searching for repository markers so the workflow still functions in repositories that
 # were initialised with --no-git.
 SCRIPT_DIR="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
 
 if git rev-parse --show-toplevel >/dev/null 2>&1; then
     REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -182,6 +190,53 @@ else
 fi
 
 cd "$REPO_ROOT"
+
+if $UPDATE_CURRENT; then
+    MODE="update"
+    CURRENT_BRANCH=$(get_current_branch)
+    if has_git; then
+        HAS_GIT=true
+    else
+        HAS_GIT=false
+    fi
+    FEATURE_DIR=$(find_feature_dir_by_prefix "$REPO_ROOT" "$CURRENT_BRANCH")
+    SPEC_FILE="$FEATURE_DIR/spec.md"
+
+    if [[ ! -d "$FEATURE_DIR" ]]; then
+        echo "Error: Feature directory not found for branch '$CURRENT_BRANCH'." >&2
+        exit 1
+    fi
+
+    if [[ ! -f "$SPEC_FILE" ]]; then
+        echo "Error: spec.md not found in $FEATURE_DIR. Run /speckit.specify without --update-current first." >&2
+        exit 1
+    fi
+
+    FEATURE_NUM="000"
+    feature_basename=$(basename "$FEATURE_DIR")
+    if [[ "$feature_basename" =~ ^([0-9]{3})- ]]; then
+        FEATURE_NUM="${BASH_REMATCH[1]}"
+    fi
+
+    BRANCH_NAME="$CURRENT_BRANCH"
+    export SPECIFY_FEATURE="$BRANCH_NAME"
+
+    if $JSON_MODE; then
+        printf '{"BRANCH_NAME":"%s","SPEC_FILE":"%s","FEATURE_NUM":"%s","FEATURE_DIR":"%s","MODE":"%s"}\n' \
+            "$BRANCH_NAME" "$SPEC_FILE" "$FEATURE_NUM" "$FEATURE_DIR" "$MODE"
+    else
+        echo "MODE: $MODE"
+        echo "BRANCH_NAME: $BRANCH_NAME"
+        echo "SPEC_FILE: $SPEC_FILE"
+        echo "FEATURE_NUM: $FEATURE_NUM"
+        echo "FEATURE_DIR: $FEATURE_DIR"
+        echo "SPECIFY_FEATURE environment variable set to: $BRANCH_NAME"
+    fi
+    exit 0
+fi
+
+# Default to feature directory for new branches; overwritten later if needed
+FEATURE_DIR=""
 
 SPECS_DIR="$REPO_ROOT/specs"
 mkdir -p "$SPECS_DIR"
@@ -296,10 +351,13 @@ if [ -f "$TEMPLATE" ]; then cp "$TEMPLATE" "$SPEC_FILE"; else touch "$SPEC_FILE"
 export SPECIFY_FEATURE="$BRANCH_NAME"
 
 if $JSON_MODE; then
-    printf '{"BRANCH_NAME":"%s","SPEC_FILE":"%s","FEATURE_NUM":"%s"}\n' "$BRANCH_NAME" "$SPEC_FILE" "$FEATURE_NUM"
+    printf '{"BRANCH_NAME":"%s","SPEC_FILE":"%s","FEATURE_NUM":"%s","FEATURE_DIR":"%s","MODE":"%s"}\n' \
+        "$BRANCH_NAME" "$SPEC_FILE" "$FEATURE_NUM" "$FEATURE_DIR" "$MODE"
 else
+    echo "MODE: $MODE"
     echo "BRANCH_NAME: $BRANCH_NAME"
     echo "SPEC_FILE: $SPEC_FILE"
     echo "FEATURE_NUM: $FEATURE_NUM"
+    echo "FEATURE_DIR: $FEATURE_DIR"
     echo "SPECIFY_FEATURE environment variable set to: $BRANCH_NAME"
 fi

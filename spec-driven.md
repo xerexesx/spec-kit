@@ -83,6 +83,8 @@ This command transforms a simple feature description (the user-prompt) into a co
 3. **Template-Based Generation**: Copies and customizes the feature specification template with your requirements
 4. **Directory Structure**: Creates the proper `specs/[branch-name]/` structure for all related documents
 
+Need to revise an existing spec without creating a new branch? Run `/speckit.specify --update-current ...`. The script returns `MODE=update` so the agent knows to reuse the current feature directory instead of generating a new one.
+
 ### The `/speckit.plan` Command
 
 Once a feature specification exists, this command creates a comprehensive implementation plan:
@@ -101,6 +103,19 @@ After a plan is created, this command analyzes the plan and related design docum
 2. **Task Derivation**: Converts contracts, entities, and scenarios into specific tasks
 3. **Parallelization**: Marks independent tasks `[P]` and outlines safe parallel groups
 4. **Output**: Writes `tasks.md` in the feature directory, ready for execution by a Task agent
+
+### The `/speckit.update` Command
+
+When requirements change mid-flight, `/speckit.update` lets you modify `spec.md`, `plan.md`, and/or `tasks.md` in-place:
+
+1. **Context-aware**: Detects the current branch/feature directory and produces backups before editing.
+2. **Scoped edits**: `--targets spec|plan|tasks|all` limits which artifacts are touched, while `--clarify-only` records questions without edits.
+3. **Checklist discipline**: The script surfaces whether checklists were refreshed or deferred (`--skip-checklists`).
+4. **Handoff guidance**: Each run ends with explicit recommendations (rerun `/speckit.plan`, `/speckit.tasks`, etc.) so every artifact stays aligned.
+
+### The `/speckit.tiny` Command
+
+For micro-fixes, `/speckit.tiny` creates a short-lived spec inside `specs/<feature>/tiny-specs/` using `tiny-spec-template.md`. Use it to capture quick bugfix requirements, validation steps, and follow-up notes before merging them back into the main spec via `/speckit.update`.
 
 ### Example: Building a Chat Feature
 

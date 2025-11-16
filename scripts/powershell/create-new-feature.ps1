@@ -5,6 +5,7 @@ param(
     [switch]$Json,
     [string]$ShortName,
     [int]$Number = 0,
+    [switch]$UpdateCurrent,
     [switch]$Help,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$FeatureDescription
@@ -13,12 +14,13 @@ $ErrorActionPreference = 'Stop'
 
 # Show help if requested
 if ($Help) {
-    Write-Host "Usage: ./create-new-feature.ps1 [-Json] [-ShortName <name>] [-Number N] <feature description>"
+    Write-Host "Usage: ./create-new-feature.ps1 [-Json] [-ShortName <name>] [-Number N] [-UpdateCurrent] <feature description>"
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -Json               Output in JSON format"
     Write-Host "  -ShortName <name>   Provide a custom short name (2-4 words) for the branch"
     Write-Host "  -Number N           Specify branch number manually (overrides auto-detection)"
+    Write-Host "  -UpdateCurrent      Reuse the currently checked-out feature branch instead of creating a new one"
     Write-Host "  -Help               Show this help message"
     Write-Host ""
     Write-Host "Examples:"
@@ -34,6 +36,7 @@ if (-not $FeatureDescription -or $FeatureDescription.Count -eq 0) {
 }
 
 $featureDesc = ($FeatureDescription -join ' ').Trim()
+$mode = 'create'
 
 # Resolve repository root. Prefer git information when available, but fall back
 # to searching for repository markers so the workflow still functions in repositories that
@@ -170,8 +173,68 @@ function Get-NextBranchNumber {
 
 function ConvertTo-CleanBranchName {
     param([string]$Name)
-    
+
     return $Name.ToLower() -replace '[^a-z0-9]', '-' -replace '-{2,}', '-' -replace '^-', '' -replace '-$', ''
+}
+
+function Get-CurrentFeatureBranch {
+    param([string]$RepoRoot)
+
+    if ($env:SPECIFY_FEATURE) {
+        return $env:SPECIFY_FEATURE
+    }
+
+    try {
+        $branch = git rev-parse --abbrev-ref HEAD 2>$null
+        if ($LASTEXITCODE -eq 0 -and $branch) {
+            return $branch.Trim()
+        }
+    } catch {
+        # ignore
+    }
+
+    $specsDir = Join-Path $RepoRoot 'specs'
+    if (Test-Path $specsDir) {
+        $latest = Get-ChildItem -Path $specsDir -Directory |
+            ForEach-Object {
+                if ($_.Name -match '^(\d{3})-') {
+                    [pscustomobject]@{
+                        Name   = $_.Name
+                        Number = [int]$matches[1]
+                    }
+                }
+            } |
+            Sort-Object -Property Number -Descending |
+            Select-Object -First 1
+
+        if ($latest) {
+            return $latest.Name
+        }
+    }
+
+    return 'main'
+}
+
+function Get-FeatureDirectoryByPrefix {
+    param(
+        [string]$RepoRoot,
+        [string]$BranchName
+    )
+
+    $specsDir = Join-Path $RepoRoot 'specs'
+    if ($BranchName -match '^(\d{3})-') {
+        $prefix = $matches[1]
+        if (Test-Path $specsDir) {
+            $matchesList = Get-ChildItem -Path $specsDir -Directory |
+                Where-Object { $_.Name -like "$prefix-*" }
+
+            if ($matchesList.Count -eq 1) {
+                return $matchesList[0].FullName
+            }
+        }
+    }
+
+    return Join-Path $specsDir $BranchName
 }
 $fallbackRoot = (Find-RepositoryRoot -StartDir $PSScriptRoot)
 if (-not $fallbackRoot) {
@@ -195,6 +258,50 @@ Set-Location $repoRoot
 
 $specsDir = Join-Path $repoRoot 'specs'
 New-Item -ItemType Directory -Path $specsDir -Force | Out-Null
+
+# Support in-place updates when requested
+if ($UpdateCurrent) {
+    $mode = 'update'
+    $currentBranch = Get-CurrentFeatureBranch -RepoRoot $repoRoot
+    $featureDir = Get-FeatureDirectoryByPrefix -RepoRoot $repoRoot -BranchName $currentBranch
+
+    if (-not (Test-Path $featureDir)) {
+        Write-Error "Error: Feature directory not found for branch '$currentBranch'."
+        exit 1
+    }
+
+    $specFile = Join-Path $featureDir 'spec.md'
+    if (-not (Test-Path $specFile)) {
+        Write-Error "Error: spec.md not found in $featureDir. Run /speckit.specify without -UpdateCurrent first."
+        exit 1
+    }
+
+    $featureNum = '000'
+    $featureName = Split-Path $featureDir -Leaf
+    if ($featureName -match '^(\d{3})-') {
+        $featureNum = $matches[1]
+    }
+
+    $env:SPECIFY_FEATURE = $currentBranch
+
+    $result = [ordered]@{
+        BRANCH_NAME = $currentBranch
+        SPEC_FILE   = $specFile
+        FEATURE_NUM = $featureNum
+        FEATURE_DIR = $featureDir
+        MODE        = $mode
+    }
+
+    if ($Json) {
+        $result | ConvertTo-Json -Compress
+    } else {
+        foreach ($entry in $result.GetEnumerator()) {
+            Write-Host "$($entry.Key): $($entry.Value)"
+        }
+        Write-Host "SPECIFY_FEATURE environment variable set to: $currentBranch"
+    }
+    exit 0
+}
 
 # Function to generate branch name with stop word filtering and length filtering
 function Get-BranchName {
@@ -310,17 +417,21 @@ if (Test-Path $template) {
 $env:SPECIFY_FEATURE = $branchName
 
 if ($Json) {
-    $obj = [PSCustomObject]@{ 
+    $obj = [ordered]@{
         BRANCH_NAME = $branchName
-        SPEC_FILE = $specFile
+        SPEC_FILE   = $specFile
         FEATURE_NUM = $featureNum
-        HAS_GIT = $hasGit
+        FEATURE_DIR = $featureDir
+        MODE        = $mode
+        HAS_GIT     = $hasGit
     }
-    $obj | ConvertTo-Json -Compress
+    [pscustomobject]$obj | ConvertTo-Json -Compress
 } else {
+    Write-Output "MODE: $mode"
     Write-Output "BRANCH_NAME: $branchName"
     Write-Output "SPEC_FILE: $specFile"
     Write-Output "FEATURE_NUM: $featureNum"
+    Write-Output "FEATURE_DIR: $featureDir"
     Write-Output "HAS_GIT: $hasGit"
     Write-Output "SPECIFY_FEATURE environment variable set to: $branchName"
 }

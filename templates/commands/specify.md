@@ -67,7 +67,8 @@ Given that feature description, do this:
    - If no existing branches/directories found with this short-name, start with number 1
    - You must only ever run this script once per feature
    - The JSON is provided in the terminal as output - always refer to it to get the actual content you're looking for
-   - The JSON output will contain BRANCH_NAME and SPEC_FILE paths
+   - The JSON output will contain `BRANCH_NAME`, `SPEC_FILE`, `FEATURE_DIR`, and `MODE` (either `create` or `update`)
+   - If `MODE=update`, treat this run as an in-place rewrite: reuse the existing spec, keep prior sections unless the user asked for removal, and log changes in a "Change Log" section instead of assuming a blank template.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot")
 
 3. Load `templates/spec-template.md` to understand required sections.

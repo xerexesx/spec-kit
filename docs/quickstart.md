@@ -29,6 +29,12 @@ Use the `/speckit.specify` command to describe what you want to build. Focus on 
 /speckit.specify Build an application that can help me organize my photos in separate photo albums. Albums are grouped by date and can be re-organized by dragging and dropping on the main page. Albums are never in other nested albums. Within each album, photos are previewed in a tile-like interface.
 ```
 
+Need to refresh an existing spec later on? You have three options:
+
+- `/speckit.specify --update-current ...` — regenerate `spec.md` for the current branch (no new folder/branch is created).
+- `/speckit.update --targets spec,plan ...` — patch only the requested artifacts and let the script manage backups/checklists.
+- `/speckit.tiny ...` — capture a short-lived "tiny spec" inside `specs/<feature>/tiny-specs/` before merging it back via `/speckit.update`.
+
 ### 3. Create a Technical Implementation Plan
 
 Use the `/speckit.plan` command to provide your tech stack and architecture choices.
