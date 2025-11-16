@@ -4,6 +4,19 @@
 
 All notable changes to the Specify CLI and templates are documented here.
 
+## [Unreleased]
+
+### Added
+
+- `/speckit.update` command template plus Bash/PowerShell scripts for in-place spec/plan/task edits (`--targets`, `--clarify-only`, `--skip-checklists`, `--no-backup`).
+- `/speckit.tiny` command, tiny-spec template, and scripts to capture lightweight fixes under `specs/<feature>/tiny-specs/`.
+- `--update-current` support for `/speckit.specify` scripts, exposing `MODE=update` and `FEATURE_DIR` in the JSON output.
+
+### Documentation
+
+- Expanded README, Quick Start, Installation, and Spec Iteration docs to describe the iterative workflows and new commands.
+- Updated `spec-driven.md` and `plan-template.md` to mention `tiny-specs/` and the iteration tooling.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 

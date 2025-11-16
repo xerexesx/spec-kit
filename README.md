@@ -250,6 +250,14 @@ Additional commands for enhanced quality and validation:
 | `/speckit.clarify`   | Clarify underspecified areas (recommended before `/speckit.plan`; formerly `/quizme`) |
 | `/speckit.analyze`   | Cross-artifact consistency & coverage analysis (run after `/speckit.tasks`, before `/speckit.implement`) |
 | `/speckit.checklist` | Generate custom quality checklists that validate requirements completeness, clarity, and consistency (like "unit tests for English") |
+| `/speckit.update`    | Refine existing `spec.md`, `plan.md`, or `tasks.md` in-place (`--targets`, backups, checklist controls) |
+| `/speckit.tiny`      | Create a lightweight tiny spec under `specs/<feature>/tiny-specs/` for fast bugfixes before merging via `/speckit.update` |
+
+#### Iteration workflows
+
+- Use `/speckit.specify --update-current ...` when you need to regenerate `spec.md` on the current branch (the script reports `MODE=update`).
+- Use `/speckit.update --targets spec,plan ...` to patch only the requested artifacts while keeping backups and checklist guidance.
+- Use `/speckit.tiny` for micro-fixes, then reference the tiny spec inside the main spec/plan and close it out via `/speckit.update` once validated.
 
 ### Environment Variables
 
